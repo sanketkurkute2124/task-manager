@@ -15,17 +15,13 @@ import {
   Box,
   Grid,
   IconButton,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   Fab,
   AppBar,
   Toolbar,
   InputAdornment,
   Paper,
-  Divider,
 } from "@mui/material";
+
 import {
   Add as AddIcon,
   Edit as EditIcon,
@@ -33,11 +29,9 @@ import {
   Search as SearchIcon,
   CloudDownload as DownloadIcon,
   CloudUpload as UploadIcon,
-  CheckCircle as CheckCircleIcon,
-  RadioButtonUnchecked as TodoIcon,
-  PlayArrow as InProgressIcon,
 } from "@mui/icons-material";
-import { format, isAfter, isToday, parseISO } from "date-fns";
+
+import { isAfter, isToday, parseISO } from "date-fns";
 import { exportToExcel, importFromExcel } from "./excelService";
 
 const priorityColors = {
@@ -46,18 +40,11 @@ const priorityColors = {
   High: "error",
 };
 
-const statusIcons = {
-  "To Do": <TodoIcon />,
-  "In Progress": <InProgressIcon />,
-  "Done": <CheckCircleIcon />,
-};
-
 function TaskManager() {
   const [tasks, setTasks] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [priorityFilter, setPriorityFilter] = useState("All");
-  const [open, setOpen] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
 
   const [formData, setFormData] = useState({
@@ -71,9 +58,7 @@ function TaskManager() {
   // Load tasks
   useEffect(() => {
     const savedTasks = localStorage.getItem("tasks");
-    if (savedTasks) {
-      setTasks(JSON.parse(savedTasks));
-    }
+    if (savedTasks) setTasks(JSON.parse(savedTasks));
   }, []);
 
   // Save tasks
@@ -81,55 +66,23 @@ function TaskManager() {
     localStorage.setItem("tasks", JSON.stringify(tasks));
   }, [tasks]);
 
-  // ✅ Direct filtering (best approach)
+  // Filter tasks
   const filteredTasks = tasks.filter((task) => {
     return (
       (searchTerm === "" ||
         task.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        task.description.toLowerCase().includes(searchTerm.toLowerCase())) &&
+        task.description?.toLowerCase().includes(searchTerm.toLowerCase())) &&
       (statusFilter === "All" || task.status === statusFilter) &&
       (priorityFilter === "All" || task.priority === priorityFilter)
     );
   });
-
-  const handleOpenDialog = (task = null) => {
-    if (task) {
-      setEditingTask(task);
-      setFormData({
-        title: task.title,
-        description: task.description || "",
-        status: task.status,
-        priority: task.priority,
-        dueDate: task.dueDate || "",
-      });
-    } else {
-      setEditingTask(null);
-      setFormData({
-        title: "",
-        description: "",
-        status: "To Do",
-        priority: "Medium",
-        dueDate: "",
-      });
-    }
-    setOpen(true);
-  };
-
-  const handleCloseDialog = () => {
-    setOpen(false);
-    setEditingTask(null);
-  };
 
   const handleSaveTask = () => {
     if (!formData.title.trim()) return;
 
     const taskData = {
       id: editingTask ? editingTask.id : Date.now(),
-      title: formData.title,
-      description: formData.description,
-      status: formData.status,
-      priority: formData.priority,
-      dueDate: formData.dueDate,
+      ...formData,
       createdAt: editingTask
         ? editingTask.createdAt
         : new Date().toISOString(),
@@ -142,24 +95,20 @@ function TaskManager() {
       setTasks([...tasks, taskData]);
     }
 
-    handleCloseDialog();
+    setEditingTask(null);
+    setFormData({
+      title: "",
+      description: "",
+      status: "To Do",
+      priority: "Medium",
+      dueDate: "",
+    });
   };
 
-  // ✅ Delete confirmation added
   const handleDeleteTask = (taskId) => {
     if (window.confirm("Are you sure you want to delete this task?")) {
       setTasks(tasks.filter((task) => task.id !== taskId));
     }
-  };
-
-  const handleStatusChange = (taskId, newStatus) => {
-    setTasks(
-      tasks.map((task) =>
-        task.id === taskId
-          ? { ...task, status: newStatus, updatedAt: new Date().toISOString() }
-          : task
-      )
-    );
   };
 
   const isOverdue = (dueDate) => {
@@ -167,29 +116,17 @@ function TaskManager() {
     return isAfter(new Date(), parseISO(dueDate)) && !isToday(parseISO(dueDate));
   };
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case "To Do":
-        return "default";
-      case "In Progress":
-        return "primary";
-      case "Done":
-        return "success";
-      default:
-        return "default";
-    }
-  };
-
   return (
     <Box sx={{ flexGrow: 1, bgcolor: "#f5f5f5", minHeight: "100vh" }}>
+      {/* Header */}
       <AppBar position="static" sx={{ mb: 3 }}>
         <Toolbar>
           <Typography variant="h6" sx={{ flexGrow: 1 }}>
-            Modern Task Manager
+            Task Manager
           </Typography>
 
           <Button color="inherit" startIcon={<UploadIcon />} component="label">
-            Import Excel
+            Import
             <input
               type="file"
               hidden
@@ -202,13 +139,13 @@ function TaskManager() {
             startIcon={<DownloadIcon />}
             onClick={() => exportToExcel(tasks)}
           >
-            Export Excel
+            Export
           </Button>
         </Toolbar>
       </AppBar>
 
       <Container maxWidth="lg">
-        {/* Search & Filters */}
+        {/* Filters */}
         <Paper sx={{ p: 2, mb: 3 }}>
           <Grid container spacing={2}>
             <Grid item xs={12} md={4}>
@@ -267,22 +204,38 @@ function TaskManager() {
           </Grid>
         </Paper>
 
-        {/* Task Cards */}
+        {/* Task List */}
         <Grid container spacing={2}>
           {filteredTasks.map((task) => (
             <Grid item xs={12} sm={6} md={4} key={task.id}>
               <Card>
                 <CardContent>
                   <Typography variant="h6">{task.title}</Typography>
-                  <Chip label={task.priority} color={priorityColors[task.priority]} />
 
-                  {task.description && <Typography>{task.description}</Typography>}
+                  <Chip
+                    label={task.priority}
+                    color={priorityColors[task.priority]}
+                    sx={{ mb: 1 }}
+                  />
+
+                  {task.description && (
+                    <Typography variant="body2">
+                      {task.description}
+                    </Typography>
+                  )}
+
+                  {isOverdue(task.dueDate) && (
+                    <Typography color="error" variant="caption">
+                      Overdue
+                    </Typography>
+                  )}
                 </CardContent>
 
                 <CardActions>
-                  <IconButton onClick={() => handleOpenDialog(task)}>
+                  <IconButton>
                     <EditIcon />
                   </IconButton>
+
                   <IconButton onClick={() => handleDeleteTask(task.id)}>
                     <DeleteIcon />
                   </IconButton>
@@ -292,11 +245,11 @@ function TaskManager() {
           ))}
         </Grid>
 
-        {/* FAB */}
+        {/* Add Button */}
         <Fab
           color="primary"
           sx={{ position: "fixed", bottom: 20, right: 20 }}
-          onClick={() => handleOpenDialog()}
+          onClick={handleSaveTask}
         >
           <AddIcon />
         </Fab>

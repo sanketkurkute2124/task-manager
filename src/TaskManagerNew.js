@@ -31,7 +31,6 @@ import {
   Edit as EditIcon,
   Delete as DeleteIcon,
   Search as SearchIcon,
-  // FilterList as FilterIcon,
   CloudDownload as DownloadIcon,
   CloudUpload as UploadIcon,
   CheckCircle as CheckCircleIcon,
@@ -55,12 +54,12 @@ const statusIcons = {
 
 function TaskManager() {
   const [tasks, setTasks] = useState([]);
-  const [filteredTasks, setFilteredTasks] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [priorityFilter, setPriorityFilter] = useState("All");
   const [open, setOpen] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
+
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -69,7 +68,7 @@ function TaskManager() {
     dueDate: "",
   });
 
-  // Load tasks from localStorage on component mount
+  // Load tasks
   useEffect(() => {
     const savedTasks = localStorage.getItem("tasks");
     if (savedTasks) {
@@ -77,33 +76,21 @@ function TaskManager() {
     }
   }, []);
 
-  // Save tasks to localStorage whenever tasks change
+  // Save tasks
   useEffect(() => {
     localStorage.setItem("tasks", JSON.stringify(tasks));
-    filterTasks();
-  }, [tasks, searchTerm, statusFilter, priorityFilter]);
+  }, [tasks]);
 
-  const filterTasks = () => {
-    let filtered = tasks;
-
-    if (searchTerm) {
-      filtered = filtered.filter(
-        (task) =>
-          task.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          task.description.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
-
-    if (statusFilter !== "All") {
-      filtered = filtered.filter((task) => task.status === statusFilter);
-    }
-
-    if (priorityFilter !== "All") {
-      filtered = filtered.filter((task) => task.priority === priorityFilter);
-    }
-
-    setFilteredTasks(filtered);
-  };
+  // ✅ Direct filtering (best approach)
+  const filteredTasks = tasks.filter((task) => {
+    return (
+      (searchTerm === "" ||
+        task.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        task.description.toLowerCase().includes(searchTerm.toLowerCase())) &&
+      (statusFilter === "All" || task.status === statusFilter) &&
+      (priorityFilter === "All" || task.priority === priorityFilter)
+    );
+  });
 
   const handleOpenDialog = (task = null) => {
     if (task) {
@@ -143,12 +130,14 @@ function TaskManager() {
       status: formData.status,
       priority: formData.priority,
       dueDate: formData.dueDate,
-      createdAt: editingTask ? editingTask.createdAt : new Date().toISOString(),
+      createdAt: editingTask
+        ? editingTask.createdAt
+        : new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
 
     if (editingTask) {
-      setTasks(tasks.map((task) => (task.id === editingTask.id ? taskData : task)));
+      setTasks(tasks.map((t) => (t.id === editingTask.id ? taskData : t)));
     } else {
       setTasks([...tasks, taskData]);
     }
@@ -156,8 +145,11 @@ function TaskManager() {
     handleCloseDialog();
   };
 
+  // ✅ Delete confirmation added
   const handleDeleteTask = (taskId) => {
-    setTasks(tasks.filter((task) => task.id !== taskId));
+    if (window.confirm("Are you sure you want to delete this task?")) {
+      setTasks(tasks.filter((task) => task.id !== taskId));
+    }
   };
 
   const handleStatusChange = (taskId, newStatus) => {
@@ -192,22 +184,19 @@ function TaskManager() {
     <Box sx={{ flexGrow: 1, bgcolor: "#f5f5f5", minHeight: "100vh" }}>
       <AppBar position="static" sx={{ mb: 3 }}>
         <Toolbar>
-          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
+          <Typography variant="h6" sx={{ flexGrow: 1 }}>
             Modern Task Manager
           </Typography>
-          <Button
-            color="inherit"
-            startIcon={<UploadIcon />}
-            component="label"
-          >
+
+          <Button color="inherit" startIcon={<UploadIcon />} component="label">
             Import Excel
             <input
               type="file"
-              accept=".xlsx,.xls"
               hidden
               onChange={(e) => importFromExcel(e.target.files[0], setTasks)}
             />
           </Button>
+
           <Button
             color="inherit"
             startIcon={<DownloadIcon />}
@@ -219,9 +208,9 @@ function TaskManager() {
       </AppBar>
 
       <Container maxWidth="lg">
-        {/* Search and Filter Section */}
+        {/* Search & Filters */}
         <Paper sx={{ p: 2, mb: 3 }}>
-          <Grid container spacing={2} alignItems="center">
+          <Grid container spacing={2}>
             <Grid item xs={12} md={4}>
               <TextField
                 fullWidth
@@ -237,6 +226,7 @@ function TaskManager() {
                 }}
               />
             </Grid>
+
             <Grid item xs={6} md={2}>
               <FormControl fullWidth>
                 <InputLabel>Status</InputLabel>
@@ -252,6 +242,7 @@ function TaskManager() {
                 </Select>
               </FormControl>
             </Grid>
+
             <Grid item xs={6} md={2}>
               <FormControl fullWidth>
                 <InputLabel>Priority</InputLabel>
@@ -267,97 +258,32 @@ function TaskManager() {
                 </Select>
               </FormControl>
             </Grid>
+
             <Grid item xs={12} md={4}>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2">
                 {filteredTasks.length} of {tasks.length} tasks
               </Typography>
             </Grid>
           </Grid>
         </Paper>
 
-        {/* Tasks Grid */}
+        {/* Task Cards */}
         <Grid container spacing={2}>
           {filteredTasks.map((task) => (
             <Grid item xs={12} sm={6} md={4} key={task.id}>
-              <Card
-                sx={{
-                  height: "100%",
-                  display: "flex",
-                  flexDirection: "column",
-                  border: isOverdue(task.dueDate) ? "2px solid #f44336" : "none",
-                }}
-              >
-                <CardContent sx={{ flexGrow: 1 }}>
-                  <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={1}>
-                    <Typography variant="h6" component="div" sx={{ flexGrow: 1, mr: 1 }}>
-                      {task.title}
-                    </Typography>
-                    <Chip
-                      label={task.priority}
-                      color={priorityColors[task.priority]}
-                      size="small"
-                    />
-                  </Box>
+              <Card>
+                <CardContent>
+                  <Typography variant="h6">{task.title}</Typography>
+                  <Chip label={task.priority} color={priorityColors[task.priority]} />
 
-                  {task.description && (
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                      {task.description}
-                    </Typography>
-                  )}
-
-                  <Box display="flex" alignItems="center" mb={1}>
-                    {statusIcons[task.status]}
-                    <Chip
-                      label={task.status}
-                      color={getStatusColor(task.status)}
-                      size="small"
-                      sx={{ ml: 1 }}
-                    />
-                  </Box>
-
-                  {task.dueDate && (
-                    <Typography
-                      variant="body2"
-                      color={isOverdue(task.dueDate) ? "error" : "text.secondary"}
-                    >
-                      Due: {format(parseISO(task.dueDate), "MMM dd, yyyy")}
-                      {isOverdue(task.dueDate) && " (Overdue)"}
-                    </Typography>
-                  )}
-
-                  <Typography variant="caption" color="text.secondary">
-                    Created: {format(parseISO(task.createdAt), "MMM dd, yyyy")}
-                  </Typography>
+                  {task.description && <Typography>{task.description}</Typography>}
                 </CardContent>
 
-                <Divider />
-
                 <CardActions>
-                  <FormControl size="small" sx={{ minWidth: 120 }}>
-                    <Select
-                      value={task.status}
-                      onChange={(e) => handleStatusChange(task.id, e.target.value)}
-                      displayEmpty
-                    >
-                      <MenuItem value="To Do">To Do</MenuItem>
-                      <MenuItem value="In Progress">In Progress</MenuItem>
-                      <MenuItem value="Done">Done</MenuItem>
-                    </Select>
-                  </FormControl>
-
-                  <IconButton
-                    size="small"
-                    onClick={() => handleOpenDialog(task)}
-                    color="primary"
-                  >
+                  <IconButton onClick={() => handleOpenDialog(task)}>
                     <EditIcon />
                   </IconButton>
-
-                  <IconButton
-                    size="small"
-                    onClick={() => handleDeleteTask(task.id)}
-                    color="error"
-                  >
+                  <IconButton onClick={() => handleDeleteTask(task.id)}>
                     <DeleteIcon />
                   </IconButton>
                 </CardActions>
@@ -366,94 +292,14 @@ function TaskManager() {
           ))}
         </Grid>
 
-        {/* Add Task FAB */}
+        {/* FAB */}
         <Fab
           color="primary"
-          aria-label="add"
-          sx={{ position: "fixed", bottom: 16, right: 16 }}
+          sx={{ position: "fixed", bottom: 20, right: 20 }}
           onClick={() => handleOpenDialog()}
         >
           <AddIcon />
         </Fab>
-
-        {/* Task Dialog */}
-        <Dialog open={open} onClose={handleCloseDialog} maxWidth="sm" fullWidth>
-          <DialogTitle>
-            {editingTask ? "Edit Task" : "Add New Task"}
-          </DialogTitle>
-          <DialogContent>
-            <TextField
-              autoFocus
-              margin="dense"
-              label="Task Title"
-              fullWidth
-              variant="outlined"
-              value={formData.title}
-              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-              sx={{ mb: 2 }}
-            />
-
-            <TextField
-              margin="dense"
-              label="Description"
-              fullWidth
-              multiline
-              rows={3}
-              variant="outlined"
-              value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              sx={{ mb: 2 }}
-            />
-
-            <Grid container spacing={2}>
-              <Grid item xs={6}>
-                <FormControl fullWidth margin="dense">
-                  <InputLabel>Status</InputLabel>
-                  <Select
-                    value={formData.status}
-                    label="Status"
-                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                  >
-                    <MenuItem value="To Do">To Do</MenuItem>
-                    <MenuItem value="In Progress">In Progress</MenuItem>
-                    <MenuItem value="Done">Done</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
-
-              <Grid item xs={6}>
-                <FormControl fullWidth margin="dense">
-                  <InputLabel>Priority</InputLabel>
-                  <Select
-                    value={formData.priority}
-                    label="Priority"
-                    onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
-                  >
-                    <MenuItem value="Low">Low</MenuItem>
-                    <MenuItem value="Medium">Medium</MenuItem>
-                    <MenuItem value="High">High</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
-            </Grid>
-
-            <TextField
-              margin="dense"
-              label="Due Date"
-              type="date"
-              fullWidth
-              InputLabelProps={{ shrink: true }}
-              value={formData.dueDate}
-              onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
-            />
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={handleCloseDialog}>Cancel</Button>
-            <Button onClick={handleSaveTask} variant="contained">
-              {editingTask ? "Update" : "Add"} Task
-            </Button>
-          </DialogActions>
-        </Dialog>
       </Container>
     </Box>
   );
